@@ -1,20 +1,20 @@
-# Wsl ComfyUI Tool
+# Wysl ComfyUI Tools
 
 独立的 ComfyUI 工具节点包，可与源版 `ComfyUI-MiniMaxH3-Easy` 并列安装。
 本项目不注册 MiniMax H3 模型、加载器或 Context 节点，因此不会覆盖源仓库的实现。
 
 ## 节点分类
 
-- `Wsl/视频连续性与处理`
+- `Wysl/视频连续性与处理`
   - `Wysl-VideoBlackIntro`
   - `Wysl-VFI x 2`
   - `Wysl-SaveVideo`
-- `Wsl/工具`
+- `Wysl/工具`
   - `Wysl-MiniMaxH3Easy-Prompt`
   - `Wysl-MiniMaxH3Easy-AreaSwitch`
   - `Wysl-MultiSet`
   - `Wysl-SwapDimensions`
-- `Wsl/Lightroom 调色`
+- `Wysl/Lightroom 调色`
   - `Wysl-LightroomImage`
   - `Wysl-LightroomVideo`
   - `Wysl-LightroomLight`

@@ -88,7 +88,7 @@ function installBridge(attempt = 0) {
 }
 
 app.registerExtension({
-    name: "Wsl.PromptBridge",
+    name: "Wysl.PromptBridge",
     setup() {
         installBridge();
     },

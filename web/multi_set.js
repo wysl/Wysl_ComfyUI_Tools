@@ -12,7 +12,7 @@ const TEXT = {
     title: "Multi Set",
     variable: ZH_BROWSER ? "变量" : "Variable",
     empty: ZH_BROWSER ? "接入值" : "Connect value",
-    category: "Wsl/工具",
+    category: "Wysl/工具",
 };
 
 function graphLink(graph, linkId) {
@@ -509,7 +509,7 @@ function installMultiSetNode(nodeType) {
 }
 
 app.registerExtension({
-    name: "Wsl.MultiSet",
+    name: "Wysl.MultiSet",
     async beforeRegisterNodeDef(nodeType, nodeData) {
         if (nodeData?.name !== NODE_TYPE) return;
         installMultiSetNode(nodeType);

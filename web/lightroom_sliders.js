@@ -134,7 +134,7 @@ function drawIndicators(node, context) {
 }
 
 app.registerExtension({
-    name: "Wsl.LightroomSliders",
+    name: "Wysl.LightroomSliders",
     async beforeRegisterNodeDef(nodeType, nodeData) {
         if (!NODE_TYPES.has(nodeData?.name)) return;
 

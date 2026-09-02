@@ -1,4 +1,4 @@
-"""Shared implementation helpers for Wsl ComfyUI tools."""
+"""Shared implementation helpers for Wysl ComfyUI tools."""
 
 from .video_api import (
     components_for_video,

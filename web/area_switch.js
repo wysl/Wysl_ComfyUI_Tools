@@ -78,7 +78,7 @@ function syncAllRouteNodes() {
 }
 
 app.registerExtension({
-    name: "Wsl.AreaSwitch",
+    name: "Wysl.AreaSwitch",
 
     setup() {
         if (!globalThis.__wslAreaSwitchTimer) {
