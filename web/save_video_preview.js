@@ -2,8 +2,7 @@ import { app } from "../../../scripts/app.js";
 
 const NODE_TYPE = "WyslSaveVideo";
 const VIDEO_WIDGET_NAME = "video-preview";
-const MIN_PREVIEW_WIDTH = 160;
-const MIN_PREVIEW_HEIGHT = 140;
+const MIN_LAYOUT_HEIGHT = 64;
 const PATCH_RETRIES = 24;
 
 function isSaveVideoNode(node) {
@@ -48,6 +47,28 @@ function stylePreviewElement(container) {
     });
 }
 
+function relaxPreviewLayout(widget) {
+    if (!widget || widget.__wslSaveVideoLayoutPatched) return;
+
+    const originalComputeLayoutSize = widget.computeLayoutSize;
+    if (typeof originalComputeLayoutSize !== "function") return;
+
+    widget.__wslSaveVideoLayoutPatched = true;
+    widget.__wslSaveVideoOriginalComputeLayoutSize = originalComputeLayoutSize;
+    widget.computeLayoutSize = function wslSaveVideoComputeLayoutSize(node) {
+        const layout = originalComputeLayoutSize.call(this, node) || {};
+
+        // The native video widget uses the initial video width as minWidth.
+        // That prevents shrinking the node after a preview has loaded. Keep
+        // its other layout values, but allow the user to resize both axes.
+        return {
+            ...layout,
+            minHeight: MIN_LAYOUT_HEIGHT,
+            minWidth: 0,
+        };
+    };
+}
+
 function patchPreviewWidget(node) {
     const widget = previewWidget(node);
     const container = widget?.element;
@@ -57,18 +78,7 @@ function patchPreviewWidget(node) {
 
     if (!widget.__wslSaveVideoPreviewPatched) {
         widget.__wslSaveVideoPreviewPatched = true;
-
-        // Keep a small stable minimum so the native node resize handle can
-        // reduce the node, regardless of the video's source resolution.
-        widget.computeLayoutSize = () => ({
-            minHeight: MIN_PREVIEW_HEIGHT,
-            minWidth: MIN_PREVIEW_WIDTH,
-        });
-
-        // Older ComfyUI builds use computeSize instead of computeLayoutSize.
-        if (typeof widget.computeSize !== "function") {
-            widget.computeSize = () => [MIN_PREVIEW_WIDTH, MIN_PREVIEW_HEIGHT];
-        }
+        relaxPreviewLayout(widget);
 
         if (typeof MutationObserver === "function") {
             const observer = new MutationObserver(() => stylePreviewElement(container));

@@ -58,7 +58,7 @@ class RegistrationTests(unittest.TestCase):
 
     def test_all_requested_nodes_are_registered_with_unique_wysl_ids(self):
         mappings = self.package.NODE_CLASS_MAPPINGS
-        self.assertEqual(len(mappings), 15)
+        self.assertEqual(len(mappings), 16)
         self.assertTrue(all(name.startswith("Wysl") for name in mappings))
         self.assertEqual(len(mappings), len(set(mappings)))
 
@@ -77,6 +77,25 @@ class RegistrationTests(unittest.TestCase):
         prompt = self.package.NODE_CLASS_MAPPINGS["WyslMiniMaxH3EasyPrompt"]
         self.assertEqual(prompt.get_prompt("hello"), ("hello",))
 
+    def test_h3_segment_timing_normalizes_duration_input(self):
+        timing = self.package.NODE_CLASS_MAPPINGS["WyslMiniMaxH3EasySegmentTiming"]
+        self.assertEqual(timing.calculate("4， 4\n2", 24), ("4,4,2", 10.0, 24.0, 24.0))
+
+    def test_h3_segment_timing_accepts_units_labels_and_brackets(self):
+        timing = self.package.NODE_CLASS_MAPPINGS["WyslMiniMaxH3EasySegmentTiming"]
+        self.assertEqual(
+            timing.calculate("第1段：6秒\n第2段：6.5s", 24),
+            ("6,6.5", 12.5, 24.0, 24.0),
+        )
+        self.assertEqual(timing.calculate("[6, 6]", 24), ("6,6", 12.0, 24.0, 24.0))
+
+    def test_h3_segment_timing_rejects_invalid_duration(self):
+        timing = self.package.NODE_CLASS_MAPPINGS["WyslMiniMaxH3EasySegmentTiming"]
+        with self.assertRaises(ValueError):
+            timing.calculate("4,not-a-number", 24)
+        with self.assertRaises(ValueError):
+            timing.calculate("nan,6", 24)
+
     def test_video_sampling_uses_the_first_frame_of_each_second(self):
         video = importlib.import_module("Wysl_ComfyUI_Tools.node_modules.video")
         self.assertEqual(video._frame_indices(3.0, 24.0, 100), [0, 24, 48])
@@ -89,6 +108,18 @@ class RegistrationTests(unittest.TestCase):
         self.assertIn('"images": [', source)
         self.assertIn('"animated": (True,)', source)
         self.assertNotIn('"wsl_saved_video"', source)
+
+    def test_save_video_preview_keeps_native_layout_and_resizing(self):
+        source = (Path(__file__).resolve().parents[1] / "web" / "save_video_preview.js").read_text(
+            encoding="utf-8",
+        )
+        self.assertIn('this.resizable = true;', source)
+        self.assertIn('objectFit: "contain"', source)
+        self.assertIn("minHeight: MIN_LAYOUT_HEIGHT", source)
+        self.assertIn("minWidth: 0", source)
+        self.assertNotIn("widget.computeSize =", source)
+        self.assertNotIn("MIN_PREVIEW_WIDTH", source)
+        self.assertNotIn("MIN_PREVIEW_HEIGHT", source)
 
     def test_lightroom_controls_default_to_zero(self):
         lightroom = self.package.NODE_CLASS_MAPPINGS["WyslLightroomColor"]
