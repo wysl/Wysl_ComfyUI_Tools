@@ -81,6 +81,14 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(video._frame_indices(3.0, 24.0, 100), [0, 24, 48])
         self.assertEqual(video._frame_indices(3.0, 30.0, 50), [0, 30])
 
+    def test_save_video_uses_comfyui_legacy_video_preview_protocol(self):
+        source = (Path(__file__).resolve().parents[1] / "node_modules" / "video.py").read_text(
+            encoding="utf-8",
+        )
+        self.assertIn('"images": [', source)
+        self.assertIn('"animated": (True,)', source)
+        self.assertNotIn('"wsl_saved_video"', source)
+
     def test_lightroom_controls_default_to_zero(self):
         lightroom = self.package.NODE_CLASS_MAPPINGS["WyslLightroomColor"]
         controls = lightroom.INPUT_TYPES()["required"]
