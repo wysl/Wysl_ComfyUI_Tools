@@ -79,15 +79,19 @@ class RegistrationTests(unittest.TestCase):
 
     def test_h3_segment_timing_normalizes_duration_input(self):
         timing = self.package.NODE_CLASS_MAPPINGS["WyslMiniMaxH3EasySegmentTiming"]
-        self.assertEqual(timing.calculate("4， 4\n2", 24), ("4,4,2", 10.0, 24.0, 24.0))
+        self.assertEqual(timing.calculate("4， 4\n2", 24), ("4,4,2", 10.0, 24, 243))
 
     def test_h3_segment_timing_accepts_units_labels_and_brackets(self):
         timing = self.package.NODE_CLASS_MAPPINGS["WyslMiniMaxH3EasySegmentTiming"]
         self.assertEqual(
             timing.calculate("第1段：6秒\n第2段：6.5s", 24),
-            ("6,6.5", 12.5, 24.0, 24.0),
+            ("6,6.5", 12.5, 24, 311),
         )
-        self.assertEqual(timing.calculate("[6, 6]", 24), ("6,6", 12.0, 24.0, 24.0))
+        self.assertEqual(timing.calculate("[6, 6]", 24), ("6,6", 12.0, 24, 294))
+
+    def test_h3_segment_timing_uses_h3_temporal_grid(self):
+        timing = self.package.NODE_CLASS_MAPPINGS["WyslMiniMaxH3EasySegmentTiming"]
+        self.assertEqual(timing.calculate("5,5,5,5,5", 24)[-1], 600)
 
     def test_h3_segment_timing_rejects_invalid_duration(self):
         timing = self.package.NODE_CLASS_MAPPINGS["WyslMiniMaxH3EasySegmentTiming"]
