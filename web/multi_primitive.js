@@ -1,0 +1,289 @@
+import { app } from "../../../scripts/app.js";
+import { ComfyWidgets } from "../../../scripts/widgets.js";
+
+const NODE_TYPE = "WyslMultiPrimitive";
+const MIN_OUTPUTS = 2;
+const ZH_BROWSER = /^(zh)(?:[-_]|$)/i.test(
+    String(globalThis.navigator?.language || globalThis.navigator?.languages?.[0] || ""),
+);
+const TEXT = {
+    title: "Wysl-MultiPrimitive",
+    empty: ZH_BROWSER ? "连接到控件输入" : "Connect to widget input",
+    category: "Wysl/工具",
+};
+
+function isInputSpec(value) {
+    return Array.isArray(value)
+        && value.length > 0
+        && (typeof value[0] === "string" || Array.isArray(value[0]));
+}
+
+function symbolInputSpec(widget) {
+    let current = widget;
+    while (current && current !== Object.prototype) {
+        for (const symbol of Object.getOwnPropertySymbols(current)) {
+            const candidate = widget?.[symbol];
+            if (isInputSpec(candidate)) return candidate;
+            if (typeof candidate !== "function") continue;
+            try {
+                const config = candidate.call(widget);
+                if (isInputSpec(config)) return config;
+            } catch {
+                // Ignore unrelated symbol callbacks on third-party widgets.
+            }
+        }
+        current = Object.getPrototypeOf(current);
+    }
+    return null;
+}
+
+function nodeInputSpec(targetNode, widgetName) {
+    const nodeData = targetNode?.constructor?.nodeData;
+    return nodeData?.input?.required?.[widgetName]
+        ?? nodeData?.input?.optional?.[widgetName]
+        ?? null;
+}
+
+function fallbackInputSpec(input, targetWidget) {
+    if (typeof input?.type === "string" && ComfyWidgets[input.type]) {
+        return [input.type, {}];
+    }
+
+    const widgetType = String(targetWidget?.type || "").toLowerCase();
+    if (widgetType === "combo") {
+        return [targetWidget?.options?.values || [], { default: targetWidget?.value }];
+    }
+    if (widgetType === "number") {
+        const options = targetWidget?.options || {};
+        const numericType = Number.isInteger(targetWidget?.value) && Number.isInteger(options.step)
+            ? "INT"
+            : "FLOAT";
+        return [numericType, { ...options, default: targetWidget?.value }];
+    }
+    if (widgetType === "toggle") return ["BOOLEAN", { default: targetWidget?.value }];
+    if (widgetType === "text" || widgetType === "customtext") {
+        return ["STRING", { ...targetWidget?.options, default: targetWidget?.value }];
+    }
+    return null;
+}
+
+function targetInfo(targetNode, input) {
+    if (!targetNode || !input) return null;
+    const widgetName = input.widget?.name || input.name;
+    if (!widgetName) return null;
+    const targetWidget = targetNode.widgets?.find((widget) => widget.name === widgetName);
+    const config = symbolInputSpec(input.widget)
+        ?? nodeInputSpec(targetNode, widgetName)
+        ?? fallbackInputSpec(input, targetWidget);
+    if (!isInputSpec(config)) return null;
+    return { config, input, targetNode, targetWidget, widgetName };
+}
+
+function configType(config) {
+    return Array.isArray(config?.[0]) ? "COMBO" : String(config?.[0] || "*");
+}
+
+function outputHasLink(output) {
+    return Boolean(output?.links?.length);
+}
+
+function removeWidgets(node) {
+    for (const widget of node.widgets || []) widget.onRemove?.();
+    if (node.widgets) node.widgets.length = 0;
+}
+
+function chainWidgetCallback(node, slot, widget) {
+    const original = widget.callback;
+    widget.callback = function multiPrimitiveWidgetCallback() {
+        const result = original?.apply(this, arguments);
+        node.applySlotToGraph(slot);
+        return result;
+    };
+}
+
+app.registerExtension({
+    name: "Wysl.MultiPrimitive",
+    registerCustomNodes() {
+        const LiteGraph = globalThis.LiteGraph;
+        if (!LiteGraph?.LGraphNode || LiteGraph.registered_node_types?.[NODE_TYPE]) return;
+
+        class MultiPrimitiveNode extends LiteGraph.LGraphNode {
+            constructor(title) {
+                super(title);
+                this.title = TEXT.title;
+                this.serialize_widgets = true;
+                this.isVirtualNode = true;
+                this.properties ||= {};
+                this.ensureMinimumOutputs();
+            }
+
+            addEmptyOutput() {
+                const number = (this.outputs?.length || 0) + 1;
+                this.addOutput(`${TEXT.empty} ${number}`, "*");
+            }
+
+            ensureMinimumOutputs() {
+                while ((this.outputs?.length || 0) < MIN_OUTPUTS) this.addEmptyOutput();
+            }
+
+            normalizeOutputs() {
+                this.ensureMinimumOutputs();
+                while (
+                    this.outputs.length > MIN_OUTPUTS
+                    && !outputHasLink(this.outputs.at(-1))
+                    && !outputHasLink(this.outputs.at(-2))
+                ) {
+                    this.removeOutput(this.outputs.length - 1);
+                }
+                if (this.outputs.every(outputHasLink)) this.addEmptyOutput();
+            }
+
+            resolveOutputTarget(slot) {
+                const output = this.outputs?.[slot];
+                const linkId = output?.links?.[0];
+                const link = linkId == null ? null : this.graph?.links?.[linkId];
+                if (!link) return null;
+                const targetNode = this.graph?.getNodeById?.(link.target_id);
+                const input = targetNode?.inputs?.[link.target_slot];
+                const info = targetInfo(targetNode, input);
+                return info ? { ...info, link } : null;
+            }
+
+            createSlotWidget(slot, info, previousValues) {
+                const name = `value_${slot + 1}`;
+                const type = configType(info.config);
+                const constructor = ComfyWidgets[type];
+                let widget = constructor?.(this, name, info.config, app)?.widget;
+                if (!widget) {
+                    const options = info.config?.[1] || {};
+                    widget = this.addWidget(
+                        String(info.targetWidget?.type || type).toLowerCase(),
+                        name,
+                        options.default ?? info.targetWidget?.value ?? null,
+                        () => {},
+                        { ...options },
+                    );
+                }
+                if (!widget) return null;
+
+                if (previousValues.has(name)) {
+                    widget.value = previousValues.get(name);
+                } else if (info.targetWidget) {
+                    widget.value = info.targetWidget.value;
+                }
+                widget.__h3MultiPrimitiveSlot = slot;
+                chainWidgetCallback(this, slot, widget);
+                return widget;
+            }
+
+            rebuildWidgets(savedValues = null) {
+                const previousValues = new Map(
+                    (this.widgets || []).map((widget) => [widget.name, widget.value]),
+                );
+                const oldSize = [...(this.size || [180, 60])];
+                removeWidgets(this);
+
+                for (let slot = 0; slot < this.outputs.length; slot += 1) {
+                    const output = this.outputs[slot];
+                    const info = this.resolveOutputTarget(slot);
+                    if (!info) {
+                        output.type = "*";
+                        output.name = `${TEXT.empty} ${slot + 1}`;
+                        delete output.widget;
+                        continue;
+                    }
+                    const type = configType(info.config);
+                    output.type = type;
+                    output.name = `${info.input.localized_name || info.input.label || info.input.name || type} ${slot + 1}`;
+                    output.widget = info.input.widget || { name: info.widgetName };
+                    this.createSlotWidget(slot, info, previousValues);
+                }
+
+                if (Array.isArray(savedValues)) {
+                    for (let index = 0; index < savedValues.length; index += 1) {
+                        if (this.widgets?.[index]) this.widgets[index].value = savedValues[index];
+                    }
+                }
+
+                const computed = this.computeSize?.() || oldSize;
+                this.setSize?.([
+                    Math.max(oldSize[0], computed[0]),
+                    Math.max(oldSize[1], computed[1]),
+                ]);
+                this.setDirtyCanvas?.(true, true);
+            }
+
+            applySlotToGraph(slot) {
+                const info = this.resolveOutputTarget(slot);
+                const sourceWidget = this.widgets?.find(
+                    (widget) => widget.__h3MultiPrimitiveSlot === slot,
+                );
+                if (!info?.targetWidget || !sourceWidget) return;
+                info.targetWidget.value = sourceWidget.value;
+                info.targetWidget.callback?.(
+                    info.targetWidget.value,
+                    app.canvas,
+                    info.targetNode,
+                    app.canvas?.graph_mouse || [0, 0],
+                    {},
+                );
+            }
+
+            applyToGraph() {
+                for (let slot = 0; slot < this.outputs.length; slot += 1) {
+                    this.applySlotToGraph(slot);
+                }
+            }
+
+            refreshComboInNode() {
+                for (let slot = 0; slot < this.outputs.length; slot += 1) {
+                    const info = this.resolveOutputTarget(slot);
+                    const widget = this.widgets?.find(
+                        (candidate) => candidate.__h3MultiPrimitiveSlot === slot,
+                    );
+                    if (!info || widget?.type !== "combo") continue;
+                    const values = Array.isArray(info.config[0])
+                        ? info.config[0]
+                        : info.config?.[1]?.values;
+                    if (!values) continue;
+                    widget.options.values = values;
+                    const choices = typeof values === "function" ? values() : values;
+                    if (Array.isArray(choices) && !choices.includes(widget.value)) {
+                        widget.value = choices[0];
+                        widget.callback?.(widget.value);
+                    }
+                }
+            }
+
+            onConnectOutput(slot, _type, input, targetNode) {
+                if (outputHasLink(this.outputs?.[slot])) return false;
+                return Boolean(targetInfo(targetNode, input));
+            }
+
+            onConnectionsChange(type) {
+                if (type !== (globalThis.LiteGraph?.OUTPUT ?? 2) || app.configuringGraph) return;
+                queueMicrotask(() => {
+                    if (!this.graph) return;
+                    this.normalizeOutputs();
+                    this.rebuildWidgets();
+                });
+            }
+
+            onAfterGraphConfigured() {
+                const savedValues = Array.isArray(this.widgets_values)
+                    ? [...this.widgets_values]
+                    : null;
+                this.normalizeOutputs();
+                this.rebuildWidgets(savedValues);
+                this.applyToGraph();
+            }
+        }
+
+        LiteGraph.registerNodeType(
+            NODE_TYPE,
+            Object.assign(MultiPrimitiveNode, { title: TEXT.title }),
+        );
+        MultiPrimitiveNode.category = TEXT.category;
+    },
+});
+

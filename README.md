@@ -13,6 +13,7 @@
   - `Wysl-MiniMaxH3Easy-Prompt`
   - `Wysl-MiniMaxH3Easy-AreaSwitch`
   - `Wysl-MultiSet`
+  - `Wysl-MultiPrimitive`
   - `Wysl-SwapDimensions`
 - `Wysl/Lightroom 调色`
   - `Wysl-LightroomImage`

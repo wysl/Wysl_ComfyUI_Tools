@@ -53,8 +53,8 @@ class RegistrationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         install_comfy_stubs()
-        sys.path.insert(0, str(Path(__file__).resolve().parents[2].parent))
-        cls.package = importlib.import_module("Wsl_Comfyui_Tool")
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1].parent))
+        cls.package = importlib.import_module("Wysl_ComfyUI_Tools")
 
     def test_all_requested_nodes_are_registered_with_unique_wysl_ids(self):
         mappings = self.package.NODE_CLASS_MAPPINGS
@@ -77,7 +77,7 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(prompt.get_prompt("hello"), ("hello",))
 
     def test_video_sampling_uses_the_first_frame_of_each_second(self):
-        video = importlib.import_module("Wsl_Comfyui_Tool.node_modules.video")
+        video = importlib.import_module("Wysl_ComfyUI_Tools.node_modules.video")
         self.assertEqual(video._frame_indices(3.0, 24.0, 100), [0, 24, 48])
         self.assertEqual(video._frame_indices(3.0, 30.0, 50), [0, 30])
 
@@ -87,6 +87,14 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(controls["temperature"][1]["default"], 0.0)
         self.assertEqual(controls["tint"][1]["default"], 0.0)
         self.assertEqual(controls["saturation"][1]["default"], 0.0)
+
+    def test_multi_primitive_is_registered_as_a_frontend_virtual_node(self):
+        source = (Path(__file__).resolve().parents[1] / "web" / "multi_primitive.js").read_text(
+            encoding="utf-8",
+        )
+        self.assertIn('const NODE_TYPE = "WyslMultiPrimitive";', source)
+        self.assertIn('name: "Wysl.MultiPrimitive"', source)
+        self.assertIn('category: "Wysl/工具"', source)
 
 
 if __name__ == "__main__":
