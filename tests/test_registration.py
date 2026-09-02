@@ -58,7 +58,7 @@ class RegistrationTests(unittest.TestCase):
 
     def test_all_requested_nodes_are_registered_with_unique_wysl_ids(self):
         mappings = self.package.NODE_CLASS_MAPPINGS
-        self.assertEqual(len(mappings), 14)
+        self.assertEqual(len(mappings), 15)
         self.assertTrue(all(name.startswith("Wysl") for name in mappings))
         self.assertEqual(len(mappings), len(set(mappings)))
 
@@ -68,6 +68,7 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(display["WyslVfiX2"], "Wysl-VFI x 2")
         self.assertEqual(display["WyslSaveVideo"], "Wysl-SaveVideo")
         self.assertEqual(display["WyslLightroomImage"], "Wysl-LightroomImage")
+        self.assertEqual(display["WyslMediaAutoSplitter"], "Wysl-自动拆分媒体")
 
     def test_swap_and_prompt_contracts(self):
         swap = self.package.NODE_CLASS_MAPPINGS["WyslSwapDimensions"]
@@ -103,6 +104,12 @@ class RegistrationTests(unittest.TestCase):
         self.assertIn('const NODE_TYPE = "WyslMultiPrimitive";', source)
         self.assertIn('name: "Wysl.MultiPrimitive"', source)
         self.assertIn('category: "Wysl/工具"', source)
+
+    def test_media_splitter_contract(self):
+        splitter = self.package.NODE_CLASS_MAPPINGS["WyslMediaAutoSplitter"]
+        self.assertEqual(splitter.RETURN_NAMES, ("图像", "音频", "视频", "图片组合"))
+        self.assertEqual(splitter.OUTPUT_IS_LIST, (True, True, True, False))
+        self.assertEqual(splitter.INPUT_TYPES()["required"]["media_bundle"][0], "MINIMAX_H3_MEDIA_BUNDLE")
 
 
 if __name__ == "__main__":

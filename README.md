@@ -15,6 +15,7 @@
   - `Wysl-MultiSet`
   - `Wysl-MultiPrimitive`
   - `Wysl-SwapDimensions`
+  - `Wysl-自动拆分媒体`
 - `Wysl/Lightroom 调色`
   - `Wysl-LightroomImage`
   - `Wysl-LightroomVideo`
@@ -23,6 +24,10 @@
   - `Wysl-LightroomDetail`
   - `Wysl-LightroomHSLWarm`
   - `Wysl-LightroomHSLCool`
+
+`Wysl-自动拆分媒体` 接收 `MiniMax H3 Easy 多媒体加载` 的混合媒体包，分别输出图像、音频和视频列表；
+第四个 `图片组合` 输出会将所有图像按自动网格拼接成一张图。图像列表保持原始分辨率，组合图默认将单张图片长边限制为 1024，
+可在节点中调整该限制。空媒体类别会被 ComfyUI 惰性阻塞，不会影响其他已连接类别的执行。
 
 ## 安装
 
