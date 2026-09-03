@@ -175,7 +175,7 @@ class RegistrationTests(unittest.TestCase):
         vfi = self.package.NODE_CLASS_MAPPINGS["WyslVfiX2"]
         controls = vfi.INPUT_TYPES()["required"]
         self.assertEqual(controls["memory_mode"][1]["default"], "低内存（FP16）")
-        self.assertEqual(controls["chunk_frames"][1]["default"], 48)
+        self.assertEqual(controls["chunk_frames"][1]["default"], 96)
 
         source = (Path(__file__).resolve().parents[1] / "node_modules" / "video.py").read_text(
             encoding="utf-8",
