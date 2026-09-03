@@ -132,6 +132,17 @@ class RegistrationTests(unittest.TestCase):
         self.assertIn("function patchCanvasKeyHandling()", source)
         self.assertIn("function teardownPromptEditor(node)", source)
 
+    def test_wysl_prompt_editor_matches_upstream_media_labels_and_paste_format(self):
+        source = (Path(__file__).resolve().parents[1] / "web" / "prompt_editor.js").read_text(
+            encoding="utf-8",
+        )
+        self.assertIn('image: { label: "图片", tag: "Picture"', source)
+        self.assertIn('["图片", "图像", "Image", "Picture"]', source)
+        self.assertIn("function pastedMentionCandidates(node)", source)
+        self.assertIn("function pastedMentionMatch(node, value, cursor, candidates)", source)
+        self.assertIn("function insertTextWithMentionChips(node, editor, text)", source)
+        self.assertIn("else insertTextWithMentionChips(node, editor, text);", source)
+
     def test_prompt_bridge_supports_all_h3_prompt_targets_and_audio_mentions(self):
         source = (Path(__file__).resolve().parents[1] / "web" / "prompt_bridge.js").read_text(
             encoding="utf-8",

@@ -16,9 +16,9 @@ const WIDGET_NAME = "wsl_h3_prompt_editor";
 const STYLE_ID = "wsl-h3-prompt-editor-style";
 
 const TYPE_INFO = Object.freeze({
-    image: { label: "图像", tag: "Picture" },
-    video: { label: "视频", tag: "Video" },
-    audio: { label: "音频", tag: "Audio" },
+    image: { label: "图片", tag: "Picture", aliases: ["图片", "图像", "Image", "Picture"] },
+    video: { label: "视频", tag: "Video", aliases: ["视频", "Video"] },
+    audio: { label: "音频", tag: "Audio", aliases: ["音频", "Audio"] },
 });
 
 function nodeClass(node) {
@@ -555,6 +555,104 @@ function insertTextAtSelection(editor, text) {
     }
 }
 
+function pastedMentionCandidates(node) {
+    const candidates = [];
+    const seen = new Set();
+    for (const option of mentionOptions(node)) {
+        const aliases = new Set([option.tag]);
+        if (option.label) aliases.add(`@${option.label}`);
+        if (option.filename) aliases.add(`@${option.filename}`);
+        for (const prefix of TYPE_INFO[option.type]?.aliases || []) {
+            aliases.add(`@${prefix}${option.ordinal}`);
+            aliases.add(`@${prefix} ${option.ordinal}`);
+        }
+        for (const raw of aliases) {
+            const value = String(raw || "");
+            const key = value.toLocaleLowerCase();
+            if (!value || seen.has(key)) continue;
+            seen.add(key);
+            candidates.push({ raw: value, option });
+        }
+    }
+    return candidates.sort((left, right) => right.raw.length - left.raw.length);
+}
+
+function pastedMentionMatch(node, value, cursor, candidates) {
+    const remaining = String(value || "").slice(cursor);
+    const official = remaining.match(/^<\s*(Picture|Video|Audio)\s*(\d+)\s*>/iu);
+    if (official) {
+        return {
+            raw: official[0],
+            option: optionForTag(node, official[1], official[2]),
+        };
+    }
+
+    const candidate = candidates.find(
+        (item) => remaining.slice(0, item.raw.length).toLocaleLowerCase()
+            === item.raw.toLocaleLowerCase(),
+    );
+    if (candidate) return candidate;
+
+    const indexed = remaining.match(/^@(图片|图像|Image|Picture|视频|Video|音频|Audio)\s*(\d+)/iu);
+    if (indexed) {
+        const alias = indexed[1].toLocaleLowerCase();
+        const type = ["视频", "video"].includes(alias)
+            ? "video"
+            : ["音频", "audio"].includes(alias)
+                ? "audio"
+                : "image";
+        return {
+            raw: indexed[0],
+            option: optionForTag(node, TYPE_INFO[type].tag, indexed[2]),
+        };
+    }
+    return null;
+}
+
+function appendPastedText(fragment, text) {
+    String(text || "").split("\n").forEach((part, index) => {
+        if (index) fragment.append(document.createElement("br"));
+        if (part) fragment.append(document.createTextNode(part));
+    });
+}
+
+function insertTextWithMentionChips(node, editor, text) {
+    const selection = window.getSelection?.();
+    if (!selection?.rangeCount || !editor.contains(selection.anchorNode)) return false;
+    const value = String(text || "");
+    if (!value) return false;
+
+    const range = selection.getRangeAt(0);
+    const candidates = pastedMentionCandidates(node);
+    const fragment = document.createDocumentFragment();
+    let plainStart = 0;
+    let cursor = 0;
+    range.deleteContents();
+
+    while (cursor < value.length) {
+        const match = pastedMentionMatch(node, value, cursor, candidates);
+        if (!match) {
+            cursor += 1;
+            continue;
+        }
+        if (plainStart < cursor) appendPastedText(fragment, value.slice(plainStart, cursor));
+        fragment.append(makeChip(match.option), document.createTextNode("\u200B"));
+        cursor += match.raw.length;
+        plainStart = cursor;
+    }
+    if (plainStart < value.length) appendPastedText(fragment, value.slice(plainStart));
+
+    const caretMarker = document.createTextNode("\u200B");
+    fragment.append(caretMarker);
+    range.insertNode(fragment);
+    const caret = document.createRange();
+    caret.setStart(caretMarker, caretMarker.textContent.length);
+    caret.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(caret);
+    return true;
+}
+
 function updateModeControls(node) {
     const raw = node?.properties?.[VIEW_PROP] === RAW;
     node?.__wslH3StructuredButton?.classList.toggle("is-active", !raw);
@@ -721,7 +819,9 @@ function ensurePromptEditor(node) {
     editor.addEventListener("paste", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        insertTextAtSelection(editor, event.clipboardData?.getData("text/plain") || "");
+        const text = event.clipboardData?.getData("text/plain") || "";
+        if (node.properties?.[VIEW_PROP] === RAW) insertTextAtSelection(editor, text);
+        else insertTextWithMentionChips(node, editor, text);
         syncPromptWidget(node);
         syncMentionMenu(node);
     });
