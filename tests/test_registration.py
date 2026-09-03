@@ -17,6 +17,7 @@ def install_comfy_stubs():
     torch = types.ModuleType("torch")
     torch.Tensor = FakeTensor
     torch.nn = types.SimpleNamespace(functional=types.SimpleNamespace())
+    torch.float16 = object()
     torch.float32 = object()
     torch.float64 = object()
     sys.modules["torch"] = torch
@@ -93,6 +94,53 @@ class RegistrationTests(unittest.TestCase):
         timing = self.package.NODE_CLASS_MAPPINGS["WyslMiniMaxH3EasySegmentTiming"]
         self.assertEqual(timing.calculate("5,5,5,5,5", 24)[-1], 600)
 
+    def test_h3_segment_timing_uses_a_compact_single_line_input(self):
+        timing = self.package.NODE_CLASS_MAPPINGS["WyslMiniMaxH3EasySegmentTiming"]
+        options = timing.INPUT_TYPES()["required"]["segment_seconds"][1]
+        self.assertFalse(options["multiline"])
+
+    def test_prompt_bridge_restores_linked_h3_segment_seconds(self):
+        source = (Path(__file__).resolve().parents[1] / "web" / "prompt_bridge.js").read_text(
+            encoding="utf-8",
+        )
+        self.assertIn('const H3_CONTEXT_NODE = "MiniMaxH3EasyContextSegments";', source)
+        self.assertIn(
+            'const segmentSecondsLink = linkedInputReference(node, "segment_seconds");',
+            source,
+        )
+        self.assertIn("promptNode.inputs.segment_seconds = segmentSecondsLink;", source)
+
+    def test_wysl_prompt_editor_discovers_downstream_h3_media(self):
+        source = (Path(__file__).resolve().parents[1] / "web" / "prompt_editor.js").read_text(
+            encoding="utf-8",
+        )
+        self.assertIn('const NODE_TYPE = "WyslMiniMaxH3EasyPrompt";', source)
+        self.assertIn('"MiniMaxH3EasyContextSegments"', source)
+        self.assertIn('const LINKS_PROP = "minimax_h3_virtual_media_links";', source)
+        self.assertIn('const MEDIA_LOADER_TYPE = "MiniMaxH3EasyMediaLoader";', source)
+        self.assertIn("function downstreamH3Targets(promptNode)", source)
+        self.assertIn("function mentionOptions(promptNode)", source)
+        self.assertIn("function mediaLoaderState(loader)", source)
+
+    def test_wysl_prompt_editor_defaults_to_structured_official_tags(self):
+        source = (Path(__file__).resolve().parents[1] / "web" / "prompt_editor.js").read_text(
+            encoding="utf-8",
+        )
+        self.assertIn('const STRUCTURED = "structured";', source)
+        self.assertIn('structured.textContent = "结构化";', source)
+        self.assertIn('return `<${TYPE_INFO[type].tag} ${ordinal}>`;', source)
+        self.assertIn("function patchCanvasKeyHandling()", source)
+        self.assertIn("function teardownPromptEditor(node)", source)
+
+    def test_prompt_bridge_supports_all_h3_prompt_targets_and_audio_mentions(self):
+        source = (Path(__file__).resolve().parents[1] / "web" / "prompt_bridge.js").read_text(
+            encoding="utf-8",
+        )
+        self.assertIn('"MiniMaxH3EasySelectedVideoContext"', source)
+        self.assertIn("H3_PROMPT_TARGETS.has(nodeType)", source)
+        self.assertIn("audio|音频", source)
+        self.assertIn("function mediaLoaderRuntimeIndex(targetNode, mediaType, ordinal)", source)
+
     def test_h3_segment_timing_rejects_invalid_duration(self):
         timing = self.package.NODE_CLASS_MAPPINGS["WyslMiniMaxH3EasySegmentTiming"]
         with self.assertRaises(ValueError):
@@ -104,6 +152,27 @@ class RegistrationTests(unittest.TestCase):
         video = importlib.import_module("Wysl_ComfyUI_Tools.node_modules.video")
         self.assertEqual(video._frame_indices(3.0, 24.0, 100), [0, 24, 48])
         self.assertEqual(video._frame_indices(3.0, 30.0, 50), [0, 30])
+
+    def test_vfi_chunks_overlap_once_and_cover_every_frame_pair(self):
+        video = importlib.import_module("Wysl_ComfyUI_Tools.node_modules.video")
+        ranges = video._vfi_chunk_ranges(12, 5)
+        self.assertEqual(ranges, [(0, 5), (4, 9), (8, 12)])
+        pairs = [pair for start, stop in ranges for pair in range(start, stop - 1)]
+        self.assertEqual(pairs, list(range(11)))
+
+    def test_vfi_defaults_to_chunked_fp16_low_memory_mode(self):
+        vfi = self.package.NODE_CLASS_MAPPINGS["WyslVfiX2"]
+        controls = vfi.INPUT_TYPES()["required"]
+        self.assertEqual(controls["memory_mode"][1]["default"], "低内存（FP16）")
+        self.assertEqual(controls["chunk_frames"][1]["default"], 48)
+
+        source = (Path(__file__).resolve().parents[1] / "node_modules" / "video.py").read_text(
+            encoding="utf-8",
+        )
+        vfi_source = source[source.index("class WyslVfiX2") : source.index("class WyslSaveVideo")]
+        self.assertIn("for start, stop in ranges:", vfi_source)
+        self.assertIn("interpolated[-2:].copy_", vfi_source)
+        self.assertNotIn("torch.cat", vfi_source)
 
     def test_save_video_uses_comfyui_legacy_video_preview_protocol(self):
         source = (Path(__file__).resolve().parents[1] / "node_modules" / "video.py").read_text(
