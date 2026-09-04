@@ -6,6 +6,7 @@ import importlib
 import sys
 import types
 import unittest
+from datetime import datetime
 from pathlib import Path
 
 
@@ -192,6 +193,34 @@ class RegistrationTests(unittest.TestCase):
         self.assertIn('"images": [', source)
         self.assertIn('"animated": (True,)', source)
         self.assertNotIn('"wsl_saved_video"', source)
+
+    def test_save_video_time_format_defaults_to_the_existing_counter_name(self):
+        video = importlib.import_module("Wysl_ComfyUI_Tools.node_modules.video")
+        controls = video.WyslSaveVideo.INPUT_TYPES()["required"]
+        self.assertEqual(
+            controls["time_format"][1]["default"],
+            video.SAVE_TIME_DISABLED,
+        )
+        self.assertEqual(
+            video._save_video_filename("Wsl", 3, "mp4", video.SAVE_TIME_DISABLED),
+            "Wsl_00003_.mp4",
+        )
+
+    def test_save_video_supports_selectable_local_time_formats(self):
+        video = importlib.import_module("Wysl_ComfyUI_Tools.node_modules.video")
+        now = datetime(2026, 9, 4, 8, 7, 6)
+        expected = {
+            video.SAVE_TIME_DATE_TIME: "Wsl_2026-09-04_08-07-06_00003_.mp4",
+            video.SAVE_TIME_COMPACT: "Wsl_20260904_080706_00003_.mp4",
+            video.SAVE_TIME_DATE: "Wsl_2026-09-04_00003_.mp4",
+            video.SAVE_TIME_CLOCK: "Wsl_08-07-06_00003_.mp4",
+        }
+        for selected_format, filename in expected.items():
+            with self.subTest(selected_format=selected_format):
+                self.assertEqual(
+                    video._save_video_filename("Wsl", 3, "mp4", selected_format, now),
+                    filename,
+                )
 
     def test_save_video_preview_keeps_native_layout_and_resizing(self):
         source = (Path(__file__).resolve().parents[1] / "web" / "save_video_preview.js").read_text(
