@@ -1,11 +1,19 @@
 # Third-Party Notices
 
-The face tracking, crop normalization, latent injection, per-frame denoise,
-masking, and stitch-back primitives in `face_refine_nodes.py` are adapted from
-[ComfyUI-H3-FaceRefine](https://github.com/Carasibana/ComfyUI-H3-FaceRefine).
+The following adapted components are distributed under the MIT License:
+
+- The H3 chroma-noise palette, taper and luminance-preservation algorithm in
+  `node_modules/h3_segments.py`, adapted from
+  [ComfyUI-MiniMaxH3-Easy](https://github.com/wysl/ComfyUI-MiniMaxH3-Easy),
+  copyright (c) 2026 nkxx188.
+- The face tracking, crop normalization, latent injection, per-frame denoise,
+  masking, and stitch-back primitives in `face_refine_nodes.py`, adapted from
+  [ComfyUI-H3-FaceRefine](https://github.com/Carasibana/ComfyUI-H3-FaceRefine),
+  copyright (c) 2026 Carasibana.
 
 MIT License
 
+Copyright (c) 2026 nkxx188
 Copyright (c) 2026 Carasibana
 
 Permission is hereby granted, free of charge, to any person obtaining a copy

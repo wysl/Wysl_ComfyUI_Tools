@@ -9,6 +9,8 @@
   - `Wysl-VideoBlackIntro`
   - `Wysl-VFI x 2`
   - `Wysl-SaveVideo`
+- `Wysl/H3 分段处理`
+  - `Wysl-H3 分段彩噪`
 - `Wysl/工具`
   - `Wysl-MiniMaxH3Easy-Prompt`
   - `Wysl-MiniMaxH3Easy-AreaSwitch`
@@ -35,6 +37,12 @@
 FPS 是播放速率，不会按分段相加；目标总帧数按合计时长一次应用 `17k+5` 原生时间网格计算。`上下文帧数` 不属于时长，
 它是分段之间用于连续性的重叠帧数，仍应在源版上下文分段节点中单独设置。使用 `6,6` 时，
 提示词也必须有两个 `---` 分隔的内容块，否则源版节点会报“分段数量不匹配”。
+
+`Wysl-H3 分段彩噪` 是源版分段二采的中间节点，接线为：
+`MiniMax H3 Easy Segment Render.segments -> Wysl-H3 分段彩噪.segments -> MiniMax H3 Easy Segment Refine.segments`。
+它逐段解码一采结果，只给实际交付画面加入块状彩噪，再编码回原来的 `MINIMAX_H3_SEGMENTS` 数据结构；
+首部上下文、音频、提示词、媒体引用和分段计划保持不变。默认彩噪强度从 `0.20` 在末尾 8 帧渐退到 `0.00`，
+并启用逐像素亮度保护。该节点会增加一次视频 VAE 解码与编码，属于实验性二采预处理。
 
 ## 安装
 

@@ -60,7 +60,7 @@ class RegistrationTests(unittest.TestCase):
 
     def test_all_requested_nodes_are_registered_with_unique_wysl_ids(self):
         mappings = self.package.NODE_CLASS_MAPPINGS
-        self.assertEqual(len(mappings), 16)
+        self.assertEqual(len(mappings), 17)
         self.assertTrue(all(name.startswith("Wysl") for name in mappings))
         self.assertEqual(len(mappings), len(set(mappings)))
 
@@ -71,6 +71,17 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(display["WyslSaveVideo"], "Wysl-SaveVideo")
         self.assertEqual(display["WyslLightroomImage"], "Wysl-LightroomImage")
         self.assertEqual(display["WyslMediaAutoSplitter"], "Wysl-自动拆分媒体")
+        self.assertEqual(display["WyslH3SegmentChromaNoise"], "Wysl-H3 分段彩噪")
+
+    def test_h3_segment_chroma_noise_uses_upstream_segment_transport(self):
+        node = self.package.NODE_CLASS_MAPPINGS["WyslH3SegmentChromaNoise"]
+        controls = node.INPUT_TYPES()["required"]
+        self.assertEqual(controls["segments"][0], "MINIMAX_H3_SEGMENTS")
+        self.assertEqual(node.RETURN_TYPES, ("MINIMAX_H3_SEGMENTS",))
+        self.assertEqual(controls["start_alpha"][1]["default"], 0.20)
+        self.assertEqual(controls["end_alpha"][1]["default"], 0.0)
+        self.assertEqual(controls["taper_frames"][1]["default"], 8)
+        self.assertTrue(controls["preserve_luminance"][1]["default"])
 
     def test_swap_and_prompt_contracts(self):
         swap = self.package.NODE_CLASS_MAPPINGS["WyslSwapDimensions"]
