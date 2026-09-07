@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import sys
+import tempfile
 import types
 import unittest
 from datetime import datetime
@@ -232,6 +233,34 @@ class RegistrationTests(unittest.TestCase):
                     video._save_video_filename("Wsl", 3, "mp4", selected_format, now),
                     filename,
                 )
+
+    def test_save_video_supports_compact_minute_time_with_collision_only_suffix(self):
+        video = importlib.import_module("Wysl_ComfyUI_Tools.node_modules.video")
+        now = datetime(2026, 1, 2, 17, 30, 59)
+        controls = video.WyslSaveVideo.INPUT_TYPES()["required"]
+        self.assertIn(video.SAVE_TIME_MINUTE, controls["time_format"][0])
+
+        with tempfile.TemporaryDirectory() as output_folder:
+            first = video._save_video_filename(
+                "Wsl",
+                37,
+                "mp4",
+                video.SAVE_TIME_MINUTE,
+                now,
+                output_folder,
+            )
+            self.assertEqual(first, "Wsl_20260102-1730.mp4")
+            Path(output_folder, first).touch()
+            Path(output_folder, "Wsl_20260102-1730-2.mp4").touch()
+            third = video._save_video_filename(
+                "Wsl",
+                38,
+                "mp4",
+                video.SAVE_TIME_MINUTE,
+                now,
+                output_folder,
+            )
+            self.assertEqual(third, "Wsl_20260102-1730-3.mp4")
 
     def test_save_video_preview_keeps_native_layout_and_resizing(self):
         source = (Path(__file__).resolve().parents[1] / "web" / "save_video_preview.js").read_text(
