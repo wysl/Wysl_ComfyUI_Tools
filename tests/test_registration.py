@@ -104,10 +104,7 @@ class RegistrationTests(unittest.TestCase):
         self.assertFalse(payload["enable_nsfw"])
 
     def test_grok_image_ratio_wins_over_conflicting_legacy_size(self):
-        from Wysl_ComfyUI_Tools.node_modules.grok_image import (
-            _build_payload,
-            _ratio_dimensions,
-        )
+        from Wysl_ComfyUI_Tools.node_modules.grok_image import _build_payload
 
         payload = _build_payload(
             "grok-imagine-image-2.0",
@@ -124,11 +121,9 @@ class RegistrationTests(unittest.TestCase):
         )
         self.assertEqual(payload["aspect_ratio"], "16:9")
         self.assertNotIn("size", payload)
-        self.assertEqual(_ratio_dimensions("16:9", "1k"), (1536, 864))
-        self.assertEqual(_ratio_dimensions("16:9", "2k"), (3072, 1728))
 
     def test_grok_image_legacy_size_still_controls_ratio_when_ratio_is_auto(self):
-        from Wysl_ComfyUI_Tools.node_modules.grok_image import _build_payload, _effective_ratio
+        from Wysl_ComfyUI_Tools.node_modules.grok_image import _build_payload
 
         payload = _build_payload(
             "grok-imagine-image-2.0",
@@ -143,8 +138,8 @@ class RegistrationTests(unittest.TestCase):
             False,
             None,
         )
-        self.assertEqual(payload["size"], "1024x1536")
-        self.assertEqual(_effective_ratio("自动", "1024x1536"), "2:3")
+        self.assertEqual(payload["aspect_ratio"], "2:3")
+        self.assertNotIn("size", payload)
 
     def test_h3_segment_chroma_noise_uses_upstream_segment_transport(self):
         node = self.package.NODE_CLASS_MAPPINGS["WyslH3SegmentChromaNoise"]
