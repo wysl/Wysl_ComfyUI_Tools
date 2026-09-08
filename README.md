@@ -27,6 +27,42 @@
   - `Wysl-LightroomDetail`
   - `Wysl-LightroomHSLWarm`
   - `Wysl-LightroomHSLCool`
+- `Wysl/图像生成`
+  - `Wysl-Grok Imagine Image`
+
+`Wysl-Grok Imagine Image` 使用 OpenAI-compatible 的 Grok2API 图片接口，默认模型为
+`grok-imagine-image-2.0`。它支持文生图，也支持将 ComfyUI `IMAGE` 批次作为参考图发送到
+`/v1/images/edits`，输出标准的 `IMAGE` 批次。节点只显示配置中的 `name`，不会在工作流中保存
+endpoint 或 API Key。
+
+配置模板见 `config/grok_image_endpoints.example.json`。将它复制为
+`<ComfyUI>/user/Wysl_ComfyUI_Tools/grok_image_endpoints.json`，或通过环境变量
+`WYSL_GROK_IMAGE_CONFIG` 指定配置文件路径，然后填写多组 `profiles`。每组至少需要 `name`、
+`endpoint` 和 `api_key`，可选 `edits_endpoint`、`model`、`allow_nsfw`。例如：
+
+```json
+{
+  "profiles": [
+    {
+      "name": "本地 grok2api",
+      "endpoint": "http://127.0.0.1:8000/v1/images/generations",
+      "edits_endpoint": "http://127.0.0.1:8000/v1/images/edits",
+      "api_key": "你的客户端 API Key",
+      "model": "grok-imagine-image-2.0",
+      "allow_nsfw": false
+    }
+  ]
+}
+```
+
+节点中的 NSFW 选项只是兼容标记。`grok2api` 当前由服务端的
+`provider.web.allowNSFW` 控制是否把 `enable_nsfw` 传给 Grok Web，并且账号还需要完成协议、
+生日和 NSFW 状态设置；单独在节点中打开不能绕过服务端审核。开启时应在 grok2api 管理设置中
+启用 Web Provider 的 `allowNSFW`，再按其账号管理流程完成账号状态设置。
+
+当前 `grok2api` 版本会校验 `resolution` 和 `quality` 的取值，但 WebSocket 生成消息实际只把
+比例、Pro 模式和图片数量传给上游，因此这两个选项主要用于兼容其他 OpenAI-compatible endpoint；
+图片编辑请求会自动省略 `quality`，因为该服务端的 `/v1/images/edits` 不接受它。
 
 `Wysl-自动拆分媒体` 接收 `MiniMax H3 Easy 多媒体加载` 的混合媒体包，分别输出图像、音频和视频列表；
 第四个 `图片组合` 输出会将所有图像按自动网格拼接成一张图。图像列表保持原始分辨率，组合图默认将单张图片长边限制为 1024，

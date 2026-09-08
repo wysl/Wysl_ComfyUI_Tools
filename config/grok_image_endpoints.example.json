@@ -1,0 +1,12 @@
+{
+  "profiles": [
+    {
+      "name": "本地 grok2api",
+      "endpoint": "http://127.0.0.1:8000/v1/images/generations",
+      "edits_endpoint": "http://127.0.0.1:8000/v1/images/edits",
+      "api_key": "替换为你的客户端 API Key",
+      "model": "grok-imagine-image-2.0",
+      "allow_nsfw": false
+    }
+  ]
+}

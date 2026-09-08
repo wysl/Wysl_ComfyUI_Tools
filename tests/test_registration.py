@@ -61,7 +61,7 @@ class RegistrationTests(unittest.TestCase):
 
     def test_all_requested_nodes_are_registered_with_unique_wysl_ids(self):
         mappings = self.package.NODE_CLASS_MAPPINGS
-        self.assertEqual(len(mappings), 17)
+        self.assertEqual(len(mappings), 18)
         self.assertTrue(all(name.startswith("Wysl") for name in mappings))
         self.assertEqual(len(mappings), len(set(mappings)))
 
@@ -73,6 +73,35 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(display["WyslLightroomImage"], "Wysl-LightroomImage")
         self.assertEqual(display["WyslMediaAutoSplitter"], "Wysl-自动拆分媒体")
         self.assertEqual(display["WyslH3SegmentChromaNoise"], "Wysl-H3 分段彩噪")
+        self.assertEqual(display["WyslGrokImagineImage"], "Wysl-Grok Imagine Image")
+
+    def test_grok_image_node_has_profile_only_endpoint_selector(self):
+        node = self.package.NODE_CLASS_MAPPINGS["WyslGrokImagineImage"]
+        controls = node.INPUT_TYPES()["required"]
+        self.assertEqual(controls["endpoint_profile"][0], ["未配置 Grok endpoint"])
+        self.assertEqual(controls["model"][0], ["grok-imagine-image-2.0"])
+        self.assertEqual(node.RETURN_TYPES, ("IMAGE",))
+
+    def test_grok_image_payload_omits_auto_quality(self):
+        from Wysl_ComfyUI_Tools.node_modules.grok_image import _build_payload
+
+        payload = _build_payload(
+            "grok-imagine-image-2.0",
+            "a studio portrait",
+            1,
+            "自动",
+            "自动",
+            "1k",
+            "auto",
+            "b64_json",
+            "跟随配置",
+            False,
+            None,
+        )
+        self.assertNotIn("quality", payload)
+        self.assertNotIn("aspect_ratio", payload)
+        self.assertNotIn("size", payload)
+        self.assertFalse(payload["enable_nsfw"])
 
     def test_h3_segment_chroma_noise_uses_upstream_segment_transport(self):
         node = self.package.NODE_CLASS_MAPPINGS["WyslH3SegmentChromaNoise"]
