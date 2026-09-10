@@ -9,6 +9,7 @@ import types
 import unittest
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
 
 
 class FakeTensor:
@@ -461,6 +462,32 @@ class RegistrationTests(unittest.TestCase):
             media._media_index_target_size(640, 480, "自定义", 1, 1, "不缩放", 1024, "8"),
             (480, 480),
         )
+        landscape = FakeTensor()
+        landscape.ndim = 3
+        landscape.shape = (480, 640, 3)
+        portrait = FakeTensor()
+        portrait.ndim = 3
+        portrait.shape = (640, 480, 3)
+        with patch.object(
+            media,
+            "_media_index_resize_image",
+            side_effect=lambda value, target_width, target_height, *_args: (target_width, target_height),
+        ):
+            scaled = media._media_index_scale_items(
+                [("image", landscape), ("image", portrait)],
+                "按宽高比缩放",
+                "原图",
+                1,
+                1,
+                "留白",
+                "lanczos",
+                "不对齐",
+                "长边",
+                768,
+                "#000000",
+            )
+        self.assertEqual(scaled[0][1], (768, 576))
+        self.assertEqual(scaled[1][1], (576, 768))
 
 if __name__ == "__main__":
     unittest.main()
