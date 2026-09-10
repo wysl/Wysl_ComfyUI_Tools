@@ -4,6 +4,8 @@ const NODE_TYPE = "WyslMediaIndexOutput";
 const MEDIA_BUNDLE_TYPE = "MINIMAX_H3_MEDIA_BUNDLE";
 const MAX_OUTPUTS = 64;
 const MIN_OUTPUTS = 1;
+const MIN_NODE_WIDTH = 260;
+const MIN_NODE_HEIGHT = 90;
 const SCALE_MODE_WIDGET = "缩放模式";
 const SCALE_WIDGETS = [
     "宽高比",
@@ -21,6 +23,15 @@ const GROUPS = [
     { key: "audios", type: "AUDIO", label: "音频" },
     { key: "videos", type: "VIDEO", label: "视频" },
 ];
+
+// LiteGraph can call onResize for both layout changes and pointer drags. Only
+// the latter should freeze the automatic compact layout.
+let pointerHeld = false;
+if (typeof document !== "undefined") {
+    document.addEventListener("pointerdown", () => { pointerHeld = true; }, true);
+    document.addEventListener("pointerup", () => { pointerHeld = false; }, true);
+    document.addEventListener("pointercancel", () => { pointerHeld = false; }, true);
+}
 
 function graphLink(graph, linkId) {
     if (linkId == null || !graph) return null;
@@ -133,9 +144,13 @@ function resizeNodeToContent(node) {
     const outputHeight = 34 + Math.max(1, node.outputs?.length || 0) * 20;
     const mode = node.widgets?.find((widget) => widget?.name === SCALE_MODE_WIDGET);
     const scaleHeight = mode?.value === "按宽高比缩放" ? SCALE_WIDGETS.length * 20 : 0;
+    const width = Math.max(MIN_NODE_WIDTH, Number(node.size?.[0]) || MIN_NODE_WIDTH);
     node.__wyslMediaIndexSizing = true;
-    node.setSize?.([260, Math.max(90, outputHeight + scaleHeight)]);
-    node.__wyslMediaIndexSizing = false;
+    try {
+        node.setSize?.([width, Math.max(MIN_NODE_HEIGHT, outputHeight + scaleHeight)]);
+    } finally {
+        node.__wyslMediaIndexSizing = false;
+    }
 }
 
 function setScaleWidgetHidden(widget, hidden) {
@@ -214,6 +229,7 @@ function initializeNode(node) {
     node.__wyslMediaIndexInitialized = true;
     node.title = "Wysl-媒体序号输出";
     node.resizable = true;
+    node.__wyslMediaIndexUserResized = Boolean(node.properties?.wysl_media_index_user_resized);
     installScaleControls(node);
     while ((node.outputs?.length || 0) > MIN_OUTPUTS) node.removeOutput(node.outputs.length - 1);
     if (!(node.outputs?.length || 0)) node.addOutput("媒体 1", "*");
@@ -250,9 +266,18 @@ app.registerExtension({
         const originalConfigured = nodeType.prototype.onConfigure;
         nodeType.prototype.onConfigure = function onConfigureWyslMediaIndexOutput(info) {
             const result = originalConfigured?.apply(this, arguments);
+            // Restore the persisted manual-resize choice after LiteGraph has
+            // loaded node properties, then compact legacy oversized nodes.
+            this.__wyslMediaIndexUserResized = Boolean(this.properties?.wysl_media_index_user_resized);
             initializeNode(this);
             syncScaleWidgetVisibility(this);
             syncOutputs(this, true);
+            globalThis.setTimeout(() => {
+                if (!this.__wyslMediaIndexUserResized) {
+                    resizeNodeToContent(this);
+                    this.setDirtyCanvas?.(true, true);
+                }
+            }, 0);
             return result;
         };
         const originalConnectionsChange = nodeType.prototype.onConnectionsChange;
@@ -271,7 +296,11 @@ app.registerExtension({
         const originalResized = nodeType.prototype.onResize;
         nodeType.prototype.onResize = function onResizeWyslMediaIndexOutput() {
             const result = originalResized?.apply(this, arguments);
-            if (!this.__wyslMediaIndexSizing) this.__wyslMediaIndexUserResized = true;
+            if (pointerHeld && !this.__wyslMediaIndexSizing) {
+                this.__wyslMediaIndexUserResized = true;
+                this.properties ||= {};
+                this.properties.wysl_media_index_user_resized = true;
+            }
             return result;
         };
     },

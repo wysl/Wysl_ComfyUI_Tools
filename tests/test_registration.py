@@ -446,6 +446,10 @@ class RegistrationTests(unittest.TestCase):
         self.assertIn("function syncOutputs(node, force = false)", source)
         self.assertIn('const SCALE_MODE_WIDGET = "缩放模式";', source)
         self.assertIn("function syncScaleWidgetVisibility(node)", source)
+        self.assertIn("const MIN_NODE_HEIGHT = 90;", source)
+        self.assertIn("let pointerHeld = false;", source)
+        self.assertIn("this.properties.wysl_media_index_user_resized = true;", source)
+        self.assertIn("compact legacy oversized nodes", source)
 
     def test_media_index_scaling_matches_v2_target_size_rules(self):
         media = importlib.import_module("Wysl_ComfyUI_Tools.node_modules.media")
