@@ -4,6 +4,18 @@ const NODE_TYPE = "WyslMediaIndexOutput";
 const MEDIA_BUNDLE_TYPE = "MINIMAX_H3_MEDIA_BUNDLE";
 const MAX_OUTPUTS = 64;
 const MIN_OUTPUTS = 1;
+const SCALE_MODE_WIDGET = "缩放模式";
+const SCALE_WIDGETS = [
+    "宽高比",
+    "自定义宽度",
+    "自定义高度",
+    "适配方式",
+    "缩放算法",
+    "对齐倍数",
+    "缩放基准",
+    "缩放长度",
+    "背景颜色",
+];
 const GROUPS = [
     { key: "images", type: "IMAGE", label: "图片" },
     { key: "audios", type: "AUDIO", label: "音频" },
@@ -116,6 +128,56 @@ function setOutputDescriptor(output, descriptor, index) {
     output.localized_name = name;
 }
 
+function resizeNodeToContent(node) {
+    if (!node || node.__wyslMediaIndexUserResized) return;
+    const outputHeight = 34 + Math.max(1, node.outputs?.length || 0) * 20;
+    const mode = node.widgets?.find((widget) => widget?.name === SCALE_MODE_WIDGET);
+    const scaleHeight = mode?.value === "按宽高比缩放" ? SCALE_WIDGETS.length * 20 : 0;
+    node.__wyslMediaIndexSizing = true;
+    node.setSize?.([260, Math.max(90, outputHeight + scaleHeight)]);
+    node.__wyslMediaIndexSizing = false;
+}
+
+function setScaleWidgetHidden(widget, hidden) {
+    if (!widget) return;
+    if (!Object.prototype.hasOwnProperty.call(widget, "__wyslMediaIndexOriginalType")) {
+        widget.__wyslMediaIndexOriginalType = widget.type;
+        widget.__wyslMediaIndexOriginalComputeSize = widget.computeSize;
+    }
+    widget.hidden = hidden;
+    widget.type = hidden ? "hidden" : widget.__wyslMediaIndexOriginalType;
+    widget.options ||= {};
+    widget.options.hidden = hidden;
+    if (hidden) widget.computeSize = () => [0, -4];
+    else if (widget.__wyslMediaIndexOriginalComputeSize) widget.computeSize = widget.__wyslMediaIndexOriginalComputeSize;
+    else delete widget.computeSize;
+}
+
+function syncScaleWidgetVisibility(node) {
+    const mode = node?.widgets?.find((widget) => widget?.name === SCALE_MODE_WIDGET);
+    const enabled = mode?.value === "按宽高比缩放";
+    for (const name of SCALE_WIDGETS) {
+        setScaleWidgetHidden(node?.widgets?.find((widget) => widget?.name === name), !enabled);
+    }
+    resizeNodeToContent(node);
+}
+
+function installScaleControls(node) {
+    if (!node || node.__wyslMediaIndexScaleInstalled) return;
+    node.__wyslMediaIndexScaleInstalled = true;
+    const mode = node.widgets?.find((widget) => widget?.name === SCALE_MODE_WIDGET);
+    if (mode) {
+        const originalCallback = mode.callback;
+        mode.callback = function onMediaIndexScaleModeChanged() {
+            const result = originalCallback?.apply(this, arguments);
+            syncScaleWidgetVisibility(node);
+            node.setDirtyCanvas?.(true, true);
+            return result;
+        };
+    }
+    syncScaleWidgetVisibility(node);
+}
+
 function syncOutputs(node, force = false) {
     if (!node || !node.graph) return;
     const connection = sourceConnection(node);
@@ -142,6 +204,7 @@ function syncOutputs(node, force = false) {
     for (let index = 0; index < node.outputs.length; index += 1) {
         setOutputDescriptor(node.outputs[index], descriptors[index] || { type: "*", name: `媒体 ${index + 1}` }, index);
     }
+    resizeNodeToContent(node);
     node.setDirtyCanvas?.(true, true);
     app.graph?.setDirtyCanvas?.(true, true);
 }
@@ -151,8 +214,10 @@ function initializeNode(node) {
     node.__wyslMediaIndexInitialized = true;
     node.title = "Wysl-媒体序号输出";
     node.resizable = true;
+    installScaleControls(node);
     while ((node.outputs?.length || 0) > MIN_OUTPUTS) node.removeOutput(node.outputs.length - 1);
     if (!(node.outputs?.length || 0)) node.addOutput("媒体 1", "*");
+    resizeNodeToContent(node);
     syncOutputs(node, true);
     node.__wyslMediaIndexTimer = globalThis.setInterval(() => syncOutputs(node), 500);
 }
@@ -178,6 +243,7 @@ app.registerExtension({
         nodeType.prototype.onAdded = function onAddedWyslMediaIndexOutput() {
             const result = originalAdded?.apply(this, arguments);
             initializeNode(this);
+            syncScaleWidgetVisibility(this);
             syncOutputs(this, true);
             return result;
         };
@@ -185,6 +251,7 @@ app.registerExtension({
         nodeType.prototype.onConfigure = function onConfigureWyslMediaIndexOutput(info) {
             const result = originalConfigured?.apply(this, arguments);
             initializeNode(this);
+            syncScaleWidgetVisibility(this);
             syncOutputs(this, true);
             return result;
         };
@@ -200,6 +267,12 @@ app.registerExtension({
         nodeType.prototype.onRemoved = function onRemovedWyslMediaIndexOutput() {
             stopTimer(this);
             return originalRemoved?.apply(this, arguments);
+        };
+        const originalResized = nodeType.prototype.onResize;
+        nodeType.prototype.onResize = function onResizeWyslMediaIndexOutput() {
+            const result = originalResized?.apply(this, arguments);
+            if (!this.__wyslMediaIndexSizing) this.__wyslMediaIndexUserResized = true;
+            return result;
         };
     },
 });

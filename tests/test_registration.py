@@ -398,6 +398,10 @@ class RegistrationTests(unittest.TestCase):
         self.assertTrue(node.INPUT_IS_LIST)
         self.assertEqual(len(node.RETURN_TYPES), 64)
         self.assertEqual(node.INPUT_TYPES()["required"]["media"][0], "*")
+        controls = node.INPUT_TYPES()["required"]
+        self.assertEqual(controls["缩放模式"][1]["default"], "关闭")
+        self.assertEqual(controls["缩放算法"][1]["default"], "lanczos")
+        self.assertEqual(controls["缩放基准"][1]["default"], "不缩放")
         image_values = [object(), object(), object()]
         outputs = node.split(image_values)
         self.assertEqual(outputs[:3], tuple(image_values))
@@ -413,6 +417,12 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(bundle_outputs[:3], ("image-1", "image-2", "video-1"))
         wrapped_bundle_outputs = node.split([bundle])
         self.assertEqual(wrapped_bundle_outputs[:3], ("image-1", "image-2", "video-1"))
+        duck_bundle = types.SimpleNamespace(items=[
+            types.SimpleNamespace(media_type="image", value="image-1"),
+            types.SimpleNamespace(media_type="video", value="video-1"),
+        ])
+        duck_outputs = node.split([duck_bundle])
+        self.assertEqual(duck_outputs[:2], ("image-1", "video-1"))
         source = (Path(__file__).resolve().parents[1] / "web" / "media_index_output.js").read_text(
             encoding="utf-8",
         )
@@ -420,6 +430,19 @@ class RegistrationTests(unittest.TestCase):
         self.assertIn('const MEDIA_BUNDLE_TYPE = "MINIMAX_H3_MEDIA_BUNDLE";', source)
         self.assertIn("function descriptorsForConnection(connection)", source)
         self.assertIn("function syncOutputs(node, force = false)", source)
+        self.assertIn('const SCALE_MODE_WIDGET = "缩放模式";', source)
+        self.assertIn("function syncScaleWidgetVisibility(node)", source)
+
+    def test_media_index_scaling_matches_v2_target_size_rules(self):
+        media = importlib.import_module("Wysl_ComfyUI_Tools.node_modules.media")
+        self.assertEqual(
+            media._media_index_target_size(640, 480, "16:9", 1, 1, "长边", 1024, "不对齐"),
+            (1024, 576),
+        )
+        self.assertEqual(
+            media._media_index_target_size(640, 480, "自定义", 1, 1, "不缩放", 1024, "8"),
+            (480, 480),
+        )
 
 if __name__ == "__main__":
     unittest.main()
