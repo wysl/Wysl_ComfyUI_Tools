@@ -406,6 +406,20 @@ class RegistrationTests(unittest.TestCase):
         outputs = node.split(image_values)
         self.assertEqual(outputs[:3], tuple(image_values))
         self.assertTrue(all(value is None for value in outputs[3:]))
+        list_widget_outputs = node.split(
+            image_values,
+            缩放模式=["关闭"],
+            宽高比=["原图"],
+            自定义宽度=[1],
+            自定义高度=[1],
+            适配方式=["留白"],
+            缩放算法=["lanczos"],
+            对齐倍数=["不对齐"],
+            缩放基准=["不缩放"],
+            缩放长度=[1024],
+            背景颜色=["#000000"],
+        )
+        self.assertEqual(list_widget_outputs[:3], tuple(image_values))
         bundle = {
             "items": [
                 {"media_type": "image", "value": "image-1"},
