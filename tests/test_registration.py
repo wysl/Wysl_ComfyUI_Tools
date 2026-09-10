@@ -365,10 +365,14 @@ class RegistrationTests(unittest.TestCase):
 
     def test_media_loader_contract_and_three_separate_outputs(self):
         loader = self.package.NODE_CLASS_MAPPINGS["WyslMediaLoader"]
-        self.assertEqual(loader.RETURN_TYPES, ("IMAGE", "AUDIO", "VIDEO"))
-        self.assertEqual(loader.RETURN_NAMES, ("multi output", "audio output", "video output"))
-        self.assertEqual(loader.OUTPUT_IS_LIST, (True, True, True))
-        self.assertEqual(loader.load(""), ([], [], []))
+        self.assertEqual(loader.RETURN_TYPES, ("IMAGE", "AUDIO", "VIDEO", "MINIMAX_H3_MEDIA_BUNDLE"))
+        self.assertEqual(loader.RETURN_NAMES, ("multi output", "audio output", "video output", "media_bundle"))
+        self.assertEqual(loader.OUTPUT_IS_LIST, (True, True, True, False))
+        empty_outputs = loader.load("")
+        self.assertEqual(empty_outputs[:3], ([], [], []))
+        self.assertEqual(empty_outputs[3].items, ())
+        splitter = self.package.NODE_CLASS_MAPPINGS["WyslMediaAutoSplitter"]
+        self.assertEqual(splitter.INPUT_TYPES()["required"]["media_bundle"][0], loader.RETURN_TYPES[3])
         media = importlib.import_module("Wysl_ComfyUI_Tools.node_modules.media")
         self.assertEqual(media._media_loader_kind("folder/a.png"), "image")
         self.assertEqual(media._media_loader_kind("folder/a.mp3"), "audio")
