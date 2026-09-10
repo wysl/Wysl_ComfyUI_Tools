@@ -12,7 +12,17 @@ from pathlib import Path
 
 
 class FakeTensor:
-    pass
+    def __init__(self, shape=(1, 2, 2, 3), marker=None):
+        self.shape = tuple(shape)
+        self.marker = marker
+        self.ndim = len(self.shape)
+
+    def __getitem__(self, key):
+        if self.ndim == 4 and isinstance(key, slice):
+            start = 0 if key.start is None else key.start
+            stop = self.shape[0] if key.stop is None else key.stop
+            return FakeTensor((max(0, stop - start), *self.shape[1:]), self.marker)
+        return self
 
 
 def install_comfy_stubs():
@@ -61,7 +71,7 @@ class RegistrationTests(unittest.TestCase):
 
     def test_all_requested_nodes_are_registered_with_unique_wysl_ids(self):
         mappings = self.package.NODE_CLASS_MAPPINGS
-        self.assertEqual(len(mappings), 18)
+        self.assertEqual(len(mappings), 19)
         self.assertTrue(all(name.startswith("Wysl") for name in mappings))
         self.assertEqual(len(mappings), len(set(mappings)))
 
@@ -72,6 +82,7 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(display["WyslSaveVideo"], "Wysl-SaveVideo")
         self.assertEqual(display["WyslLightroomImage"], "Wysl-LightroomImage")
         self.assertEqual(display["WyslMediaAutoSplitter"], "Wysl-自动拆分媒体")
+        self.assertEqual(display["WyslMediaSplitter"], "Wysl-媒体拆分")
         self.assertEqual(display["WyslH3SegmentChromaNoise"], "Wysl-H3 分段彩噪")
         self.assertEqual(display["WyslGrokImagineImage"], "Wysl-Grok Imagine Image")
 
@@ -361,6 +372,68 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(splitter.RETURN_NAMES, ("图像", "音频", "视频", "图片组合"))
         self.assertEqual(splitter.OUTPUT_IS_LIST, (True, True, True, False))
         self.assertEqual(splitter.INPUT_TYPES()["required"]["media_bundle"][0], "MINIMAX_H3_MEDIA_BUNDLE")
+
+    def test_individual_media_splitter_contract(self):
+        splitter = self.package.NODE_CLASS_MAPPINGS["WyslMediaSplitter"]
+        self.assertTrue(splitter.INPUT_IS_LIST)
+        self.assertEqual(len(splitter.RETURN_TYPES), 45)
+        inputs = splitter.INPUT_TYPES()
+        self.assertEqual(inputs["optional"]["media_bundle"][0], "MINIMAX_H3_MEDIA_BUNDLE")
+        self.assertEqual(inputs["optional"]["images"][0], "IMAGE")
+        self.assertEqual(inputs["optional"]["videos"][0], "VIDEO")
+        self.assertEqual(inputs["optional"]["audios"][0], "AUDIO")
+        self.assertEqual(inputs["required"]["image_count"][1]["max"], 27)
+        self.assertEqual(inputs["required"]["video_count"][1]["max"], 9)
+        self.assertEqual(inputs["required"]["audio_count"][1]["max"], 9)
+
+        source = (Path(__file__).resolve().parents[1] / "web" / "media_splitter.js").read_text(
+            encoding="utf-8",
+        )
+        self.assertIn('const NODE_TYPE = "WyslMediaSplitter";', source)
+        self.assertIn('name: "Wysl.MediaSplitter"', source)
+        self.assertIn("updateOutputLinkSlots(node);", source)
+        self.assertIn("node.outputs.splice(0, node.outputs.length, ...sorted);", source)
+        self.assertIn("rebuildOutputs(node);", source)
+
+    def test_individual_media_splitter_unwraps_list_inputs_and_keeps_types_separate(self):
+        splitter = self.package.NODE_CLASS_MAPPINGS["WyslMediaSplitter"]()
+        image_one = FakeTensor(marker="one")
+        image_two = FakeTensor(marker="two")
+        outputs = splitter.split(
+            image_count=[2],
+            video_count=[0],
+            audio_count=[0],
+            empty_output_mode=["allow_none"],
+            images=[image_one, image_two],
+        )
+        self.assertEqual(len(outputs), 2)
+        self.assertEqual([item.marker for item in outputs], ["one", "two"])
+
+        missing = splitter.split(
+            image_count=[2],
+            video_count=[0],
+            audio_count=[0],
+            empty_output_mode=["allow_none"],
+            images=[image_one],
+        )
+        self.assertIsNone(missing[1])
+
+        audio = {"waveform": FakeTensor(shape=(1, 1, 4)), "sample_rate": 16_000}
+        bundle = {
+            "items": [
+                {"media_type": "image", "value": image_one},
+                {"media_type": "audio", "value": audio},
+            ]
+        }
+        bundle_outputs = splitter.split(
+            image_count=[1],
+            video_count=[0],
+            audio_count=[1],
+            empty_output_mode=["allow_none"],
+            media_bundle=[bundle],
+        )
+        self.assertEqual(bundle_outputs[0].marker, "one")
+        self.assertIs(bundle_outputs[1], audio)
 
 
 if __name__ == "__main__":
