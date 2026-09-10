@@ -403,6 +403,9 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(controls["缩放模式"][1]["default"], "关闭")
         self.assertEqual(controls["缩放算法"][1]["default"], "lanczos")
         self.assertEqual(controls["缩放基准"][1]["default"], "不缩放")
+        self.assertIn("总像素(万像素)", controls["缩放基准"][0])
+        self.assertEqual(controls["自定义宽度"][1]["default"], 1)
+        self.assertEqual(controls["自定义高度"][1]["default"], 1)
         image_values = [object(), object(), object()]
         outputs = node.split(image_values)
         self.assertEqual(outputs[:3], tuple(image_values))
@@ -462,6 +465,14 @@ class RegistrationTests(unittest.TestCase):
             media._media_index_target_size(640, 480, "自定义", 1, 1, "不缩放", 1024, "8"),
             (480, 480),
         )
+        self.assertEqual(
+            media._media_index_target_size(1, 1, "原图", 1, 1, "总像素(万像素)", 100, "不对齐"),
+            (1000, 1000),
+        )
+        self.assertEqual(
+            media._media_index_target_size(1, 1, "原图", 1, 1, "总像素(kilo pixel)", 100, "不对齐"),
+            (316, 316),
+        )
         landscape = FakeTensor()
         landscape.ndim = 3
         landscape.shape = (480, 640, 3)
@@ -488,6 +499,10 @@ class RegistrationTests(unittest.TestCase):
             )
         self.assertEqual(scaled[0][1], (768, 576))
         self.assertEqual(scaled[1][1], (576, 768))
+        source = (Path(__file__).resolve().parents[1] / "web" / "media_index_output.js").read_text(
+            encoding="utf-8",
+        )
+        self.assertIn('const HIDDEN_SCALE_WIDGETS = ["自定义宽度", "自定义高度"];', source)
 
 if __name__ == "__main__":
     unittest.main()

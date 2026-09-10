@@ -9,8 +9,6 @@ const MIN_NODE_HEIGHT = 90;
 const SCALE_MODE_WIDGET = "缩放模式";
 const SCALE_WIDGETS = [
     "宽高比",
-    "自定义宽度",
-    "自定义高度",
     "适配方式",
     "缩放算法",
     "对齐倍数",
@@ -18,6 +16,7 @@ const SCALE_WIDGETS = [
     "缩放长度",
     "背景颜色",
 ];
+const HIDDEN_SCALE_WIDGETS = ["自定义宽度", "自定义高度"];
 const GROUPS = [
     { key: "images", type: "IMAGE", label: "图片" },
     { key: "audios", type: "AUDIO", label: "音频" },
@@ -171,6 +170,9 @@ function setScaleWidgetHidden(widget, hidden) {
 function syncScaleWidgetVisibility(node) {
     const mode = node?.widgets?.find((widget) => widget?.name === SCALE_MODE_WIDGET);
     const enabled = mode?.value === "按宽高比缩放";
+    for (const name of HIDDEN_SCALE_WIDGETS) {
+        setScaleWidgetHidden(node?.widgets?.find((widget) => widget?.name === name), true);
+    }
     for (const name of SCALE_WIDGETS) {
         setScaleWidgetHidden(node?.widgets?.find((widget) => widget?.name === name), !enabled);
     }
