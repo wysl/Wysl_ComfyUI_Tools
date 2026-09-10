@@ -61,7 +61,7 @@ class RegistrationTests(unittest.TestCase):
 
     def test_all_requested_nodes_are_registered_with_unique_wysl_ids(self):
         mappings = self.package.NODE_CLASS_MAPPINGS
-        self.assertEqual(len(mappings), 19)
+        self.assertEqual(len(mappings), 20)
         self.assertTrue(all(name.startswith("Wysl") for name in mappings))
         self.assertEqual(len(mappings), len(set(mappings)))
 
@@ -72,6 +72,7 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(display["WyslSaveVideo"], "Wysl-SaveVideo")
         self.assertEqual(display["WyslLightroomImage"], "Wysl-LightroomImage")
         self.assertEqual(display["WyslMediaLoader"], "Wysl-多媒体加载")
+        self.assertEqual(display["WyslMediaIndexOutput"], "Wysl-媒体序号输出")
         self.assertEqual(display["WyslMediaAutoSplitter"], "Wysl-自动拆分媒体")
         self.assertEqual(display["WyslH3SegmentChromaNoise"], "Wysl-H3 分段彩噪")
         self.assertEqual(display["WyslGrokImagineImage"], "Wysl-Grok Imagine Image")
@@ -391,6 +392,34 @@ class RegistrationTests(unittest.TestCase):
         self.assertIn("addDroppedFiles(node, files)", source)
         self.assertIn("/wysl/media-loader/list", source)
         self.assertNotIn("currentFolderFiles(node", source)
+
+    def test_media_index_output_splits_image_lists_and_bundles(self):
+        node = self.package.NODE_CLASS_MAPPINGS["WyslMediaIndexOutput"]
+        self.assertTrue(node.INPUT_IS_LIST)
+        self.assertEqual(len(node.RETURN_TYPES), 64)
+        self.assertEqual(node.INPUT_TYPES()["required"]["media"][0], "*")
+        image_values = [object(), object(), object()]
+        outputs = node.split(image_values)
+        self.assertEqual(outputs[:3], tuple(image_values))
+        self.assertTrue(all(value is None for value in outputs[3:]))
+        bundle = {
+            "items": [
+                {"media_type": "image", "value": "image-1"},
+                {"media_type": "image", "value": "image-2"},
+                {"media_type": "video", "value": "video-1"},
+            ]
+        }
+        bundle_outputs = node.split(bundle)
+        self.assertEqual(bundle_outputs[:3], ("image-1", "image-2", "video-1"))
+        wrapped_bundle_outputs = node.split([bundle])
+        self.assertEqual(wrapped_bundle_outputs[:3], ("image-1", "image-2", "video-1"))
+        source = (Path(__file__).resolve().parents[1] / "web" / "media_index_output.js").read_text(
+            encoding="utf-8",
+        )
+        self.assertIn('const NODE_TYPE = "WyslMediaIndexOutput";', source)
+        self.assertIn('const MEDIA_BUNDLE_TYPE = "MINIMAX_H3_MEDIA_BUNDLE";', source)
+        self.assertIn("function descriptorsForConnection(connection)", source)
+        self.assertIn("function syncOutputs(node, force = false)", source)
 
 if __name__ == "__main__":
     unittest.main()

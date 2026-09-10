@@ -1,0 +1,205 @@
+import { app } from "../../scripts/app.js";
+
+const NODE_TYPE = "WyslMediaIndexOutput";
+const MEDIA_BUNDLE_TYPE = "MINIMAX_H3_MEDIA_BUNDLE";
+const MAX_OUTPUTS = 64;
+const MIN_OUTPUTS = 1;
+const GROUPS = [
+    { key: "images", type: "IMAGE", label: "图片" },
+    { key: "audios", type: "AUDIO", label: "音频" },
+    { key: "videos", type: "VIDEO", label: "视频" },
+];
+
+function graphLink(graph, linkId) {
+    if (linkId == null || !graph) return null;
+    if (typeof graph.getLink === "function") return graph.getLink(linkId);
+    if (graph.links) return graph.links[linkId] ?? null;
+    if (graph._links instanceof Map) return graph._links.get(linkId) ?? null;
+    return graph._links?.[linkId] ?? null;
+}
+
+function connectedInput(node) {
+    return node?.inputs?.find((input) => input?.name === "media") || node?.inputs?.[0];
+}
+
+function sourceConnection(node) {
+    const input = connectedInput(node);
+    const link = graphLink(node?.graph, input?.link);
+    if (!link) return null;
+    const sourceNode = node.graph?.getNodeById?.(link.origin_id);
+    const sourceSlot = sourceNode?.outputs?.[link.origin_slot];
+    if (!sourceNode || !sourceSlot) return null;
+    return { input, link, sourceNode, sourceSlot };
+}
+
+function sourceState(sourceNode) {
+    const stateWidget = sourceNode?.widgets?.find((widget) => widget?.name === "media_state");
+    const raw = stateWidget?.value ?? sourceNode?.properties?.wysl_media_loader_state ?? sourceNode?.properties?.media_loader_state;
+    try {
+        const parsed = typeof raw === "string" ? JSON.parse(raw || "{}") : raw;
+        return {
+            images: Array.isArray(parsed?.images) ? parsed.images : [],
+            audios: Array.isArray(parsed?.audios) ? parsed.audios : [],
+            videos: Array.isArray(parsed?.videos) ? parsed.videos : [],
+        };
+    } catch {
+        return { images: [], audios: [], videos: [] };
+    }
+}
+
+function outputType(sourceSlot) {
+    return String(sourceSlot?.type || "*").toUpperCase();
+}
+
+function isBundleConnection(connection) {
+    const type = outputType(connection?.sourceSlot);
+    const name = String(
+        connection?.sourceSlot?.name
+        || connection?.sourceSlot?.localized_name
+        || connection?.sourceSlot?.label
+        || "",
+    ).toLowerCase();
+    return type === MEDIA_BUNDLE_TYPE || name === "media_bundle" || name === "media bundle";
+}
+
+function sourceIsKnownLoader(connection) {
+    const type = String(connection?.sourceNode?.type || "");
+    return type === "WyslMediaLoader" || type === "MiniMaxH3EasyMediaLoader";
+}
+
+function descriptorsForConnection(connection) {
+    if (!connection) return [{ type: "*", name: "媒体 1" }];
+    const state = sourceState(connection.sourceNode);
+    if (sourceIsKnownLoader(connection)) {
+        if (isBundleConnection(connection)) {
+            const descriptors = [];
+            for (const group of GROUPS) {
+                const count = Math.min(MAX_OUTPUTS - descriptors.length, state[group.key].length);
+                for (let index = 0; index < count; index += 1) {
+                    descriptors.push({ type: group.type, name: `${group.label} ${index + 1}` });
+                }
+            }
+            if (descriptors.length) return descriptors;
+        } else if (outputType(connection.sourceSlot) === "IMAGE") {
+            const count = Math.min(MAX_OUTPUTS, state.images.length);
+            if (count > 0) return Array.from({ length: count }, (_, index) => ({
+                type: "IMAGE",
+                name: `图片 ${index + 1}`,
+            }));
+        }
+    }
+
+    const type = outputType(connection.sourceSlot);
+    const label = type === "IMAGE" ? "图片" : type === "AUDIO" ? "音频" : type === "VIDEO" ? "视频" : "媒体";
+    return [{ type: type || "*", name: `${label} 1` }];
+}
+
+function hasLinks(output) {
+    return Boolean(output?.links?.length);
+}
+
+function connectedOutputCount(node) {
+    let count = 0;
+    for (let index = 0; index < (node.outputs?.length || 0); index += 1) {
+        if (hasLinks(node.outputs[index])) count = index + 1;
+    }
+    return count;
+}
+
+function setOutputDescriptor(output, descriptor, index) {
+    if (!output) return;
+    const type = descriptor?.type || "*";
+    const name = descriptor?.name || `媒体 ${index + 1}`;
+    output.type = type;
+    output.name = name;
+    output.label = name;
+    output.localized_name = name;
+}
+
+function syncOutputs(node, force = false) {
+    if (!node || !node.graph) return;
+    const connection = sourceConnection(node);
+    const descriptors = descriptorsForConnection(connection);
+    const desired = Math.min(MAX_OUTPUTS, Math.max(MIN_OUTPUTS, descriptors.length, connectedOutputCount(node)));
+    const signature = JSON.stringify({
+        source: connection?.link?.id ?? connection?.link?.origin_id ?? null,
+        count: desired,
+        descriptors,
+        links: node.outputs?.map((output) => output?.links?.length || 0),
+    });
+    if (!force && signature === node.__wyslMediaIndexSignature) return;
+    node.__wyslMediaIndexSignature = signature;
+
+    while ((node.outputs?.length || 0) < desired) {
+        const index = node.outputs.length;
+        node.addOutput(`媒体 ${index + 1}`, "*");
+    }
+    while ((node.outputs?.length || 0) > desired) {
+        const last = node.outputs.length - 1;
+        if (hasLinks(node.outputs[last])) break;
+        node.removeOutput(last);
+    }
+    for (let index = 0; index < node.outputs.length; index += 1) {
+        setOutputDescriptor(node.outputs[index], descriptors[index] || { type: "*", name: `媒体 ${index + 1}` }, index);
+    }
+    node.setDirtyCanvas?.(true, true);
+    app.graph?.setDirtyCanvas?.(true, true);
+}
+
+function initializeNode(node) {
+    if (!node || node.__wyslMediaIndexInitialized) return;
+    node.__wyslMediaIndexInitialized = true;
+    node.title = "Wysl-媒体序号输出";
+    node.resizable = true;
+    while ((node.outputs?.length || 0) > MIN_OUTPUTS) node.removeOutput(node.outputs.length - 1);
+    if (!(node.outputs?.length || 0)) node.addOutput("媒体 1", "*");
+    syncOutputs(node, true);
+    node.__wyslMediaIndexTimer = globalThis.setInterval(() => syncOutputs(node), 500);
+}
+
+function stopTimer(node) {
+    if (node?.__wyslMediaIndexTimer) {
+        globalThis.clearInterval(node.__wyslMediaIndexTimer);
+        node.__wyslMediaIndexTimer = null;
+    }
+}
+
+app.registerExtension({
+    name: "Wysl.MediaIndexOutput",
+    async beforeRegisterNodeDef(nodeType, nodeData) {
+        if (nodeData?.name !== NODE_TYPE) return;
+        const originalCreated = nodeType.prototype.onNodeCreated;
+        nodeType.prototype.onNodeCreated = function onNodeCreatedWyslMediaIndexOutput() {
+            const result = originalCreated?.apply(this, arguments);
+            initializeNode(this);
+            return result;
+        };
+        const originalAdded = nodeType.prototype.onAdded;
+        nodeType.prototype.onAdded = function onAddedWyslMediaIndexOutput() {
+            const result = originalAdded?.apply(this, arguments);
+            initializeNode(this);
+            syncOutputs(this, true);
+            return result;
+        };
+        const originalConfigured = nodeType.prototype.onConfigure;
+        nodeType.prototype.onConfigure = function onConfigureWyslMediaIndexOutput(info) {
+            const result = originalConfigured?.apply(this, arguments);
+            initializeNode(this);
+            syncOutputs(this, true);
+            return result;
+        };
+        const originalConnectionsChange = nodeType.prototype.onConnectionsChange;
+        nodeType.prototype.onConnectionsChange = function onConnectionsChangeWyslMediaIndexOutput(type) {
+            const result = originalConnectionsChange?.apply(this, arguments);
+            if (type === (globalThis.LiteGraph?.INPUT ?? 1) || type === (globalThis.LiteGraph?.OUTPUT ?? 2)) {
+                queueMicrotask(() => syncOutputs(this, true));
+            }
+            return result;
+        };
+        const originalRemoved = nodeType.prototype.onRemoved;
+        nodeType.prototype.onRemoved = function onRemovedWyslMediaIndexOutput() {
+            stopTimer(this);
+            return originalRemoved?.apply(this, arguments);
+        };
+    },
+});
