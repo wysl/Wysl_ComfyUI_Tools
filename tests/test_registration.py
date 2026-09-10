@@ -379,9 +379,14 @@ class RegistrationTests(unittest.TestCase):
             encoding="utf-8",
         )
         self.assertIn('const NODE_TYPE = "WyslMediaLoader";', source)
+        self.assertIn('makeButton("添加媒体", "wysl-media-add"', source)
+        self.assertIn('makeButton("选择文件夹", "wysl-media-modal-folder"', source)
         self.assertIn("当前目录全选", source)
+        self.assertIn("wysl-media-modal-overlay", source)
+        self.assertIn("is-reorder-target", source)
         self.assertIn("addDroppedFiles(node, files)", source)
         self.assertIn("/wysl/media-loader/list", source)
+        self.assertNotIn("currentFolderFiles(node", source)
 
 if __name__ == "__main__":
     unittest.main()
