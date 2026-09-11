@@ -391,6 +391,8 @@ class RegistrationTests(unittest.TestCase):
         )
         self.assertIn('column = columns - 1 - column', source)
         self.assertIn('layout == "单元居中排列"', source)
+        self.assertIn('columns = len(normalized)', source)
+        self.assertIn('rows = 1', source)
 
     def test_media_loader_contract_and_three_separate_outputs(self):
         loader = self.package.NODE_CLASS_MAPPINGS["WyslMediaLoader"]
