@@ -247,6 +247,22 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(video._frame_indices(3.0, 24.0, 100), [0, 24, 48])
         self.assertEqual(video._frame_indices(3.0, 30.0, 50), [0, 30])
 
+    def test_video_sampling_supports_custom_frame_positions(self):
+        video = importlib.import_module("Wysl_ComfyUI_Tools.node_modules.video")
+        self.assertEqual(video._custom_frame_indices("48, 0,48，120", 100), [48, 0])
+        self.assertEqual(video._custom_frame_indices("", 100), [])
+        self.assertEqual(video._custom_frame_indices("100,101", 100), [])
+        with self.assertRaises(ValueError):
+            video._custom_frame_indices("0,nope", 100)
+        with self.assertRaises(ValueError):
+            video._custom_frame_indices("-1", 100)
+
+        controls = video.WyslSaveVideo.INPUT_TYPES()["required"]
+        self.assertEqual(video.WyslSaveVideo.RETURN_TYPES, ("VIDEO", "IMAGE", "IMAGE", "IMAGE"))
+        self.assertEqual(video.WyslSaveVideo.RETURN_NAMES[-1], "自定义帧")
+        self.assertFalse(controls["自定义帧位置"][1]["multiline"])
+        self.assertEqual(controls["自定义帧位置"][1]["default"], "")
+
     def test_vfi_chunks_overlap_once_and_cover_every_frame_pair(self):
         video = importlib.import_module("Wysl_ComfyUI_Tools.node_modules.video")
         ranges = video._vfi_chunk_ranges(12, 5)
