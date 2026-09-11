@@ -379,8 +379,10 @@ class RegistrationTests(unittest.TestCase):
         splitter = self.package.NODE_CLASS_MAPPINGS["WyslMediaAutoSplitter"]
         self.assertEqual(splitter.RETURN_NAMES, ("图像", "音频", "视频", "图片组合"))
         self.assertEqual(splitter.OUTPUT_IS_LIST, (True, True, True, False))
-        self.assertEqual(splitter.INPUT_TYPES()["required"]["media_bundle"][0], "MINIMAX_H3_MEDIA_BUNDLE")
-        controls = splitter.INPUT_TYPES()["required"]
+        inputs = splitter.INPUT_TYPES()
+        self.assertEqual(inputs["optional"]["media_bundle"][0], "MINIMAX_H3_MEDIA_BUNDLE")
+        self.assertEqual(inputs["optional"]["image"][0], "IMAGE")
+        controls = inputs["optional"]
         self.assertEqual(controls["组合排列"][1]["default"], "从左向右")
         self.assertEqual(
             controls["组合排列"][0],
@@ -393,6 +395,8 @@ class RegistrationTests(unittest.TestCase):
         self.assertIn('layout == "单元居中排列"', source)
         self.assertIn('columns = len(normalized)', source)
         self.assertIn('rows = 1', source)
+        self.assertIn('elif image is not None:', source)
+        self.assertIn('if media_bundle is not None:', source)
 
     def test_media_loader_contract_and_three_separate_outputs(self):
         loader = self.package.NODE_CLASS_MAPPINGS["WyslMediaLoader"]
@@ -403,7 +407,7 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(empty_outputs[:3], ([], [], []))
         self.assertEqual(empty_outputs[3].items, ())
         splitter = self.package.NODE_CLASS_MAPPINGS["WyslMediaAutoSplitter"]
-        self.assertEqual(splitter.INPUT_TYPES()["required"]["media_bundle"][0], loader.RETURN_TYPES[3])
+        self.assertEqual(splitter.INPUT_TYPES()["optional"]["media_bundle"][0], loader.RETURN_TYPES[3])
         media = importlib.import_module("Wysl_ComfyUI_Tools.node_modules.media")
         self.assertEqual(media._media_loader_kind("folder/a.png"), "image")
         self.assertEqual(media._media_loader_kind("folder/a.mp3"), "audio")
