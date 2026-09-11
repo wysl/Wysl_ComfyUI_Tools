@@ -385,6 +385,10 @@ function setModalStatus(node, text, isError = false) {
     status.classList.toggle("is-error", Boolean(isError));
 }
 
+function clearPanelDropTarget(node) {
+    node?.__wyslMediaLoaderPanel?.classList.remove("is-drop-target");
+}
+
 function reorder(node, group, from, target, before) {
     if (!Number.isInteger(from) || !Number.isInteger(target) || from === target) return;
     const next = readState(node);
@@ -427,6 +431,7 @@ function createSelectedCard(node, group, path, index) {
 
     card.addEventListener("dragstart", (event) => {
         node.__wyslMediaLoaderDrag = { group, card };
+        clearPanelDropTarget(node);
         card.classList.add("is-dragging");
         event.dataTransfer?.setData("text/plain", path);
         if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
@@ -434,6 +439,7 @@ function createSelectedCard(node, group, path, index) {
     card.addEventListener("dragend", () => {
         card.classList.remove("is-dragging");
         node.__wyslMediaLoaderDrag = null;
+        clearPanelDropTarget(node);
         node.__wyslMediaLoaderPanel?.querySelectorAll(".is-reorder-target")
             .forEach((item) => item.classList.remove("is-reorder-target"));
     });
@@ -450,6 +456,7 @@ function createSelectedCard(node, group, path, index) {
         if (!drag || drag.group.type !== group.type) return;
         event.preventDefault();
         event.stopPropagation();
+        clearPanelDropTarget(node);
         card.classList.remove("is-reorder-target");
         const rect = card.getBoundingClientRect();
         reorder(
@@ -1034,27 +1041,34 @@ function setup(node) {
     panel.addEventListener("pointerdown", (event) => event.stopPropagation());
     panel.addEventListener("dragenter", (event) => {
         if (!event.dataTransfer?.items?.length) return;
+        if (node.__wyslMediaLoaderDrag) return;
         event.preventDefault();
         event.stopPropagation();
         panel.classList.add("is-drop-target");
     });
     panel.addEventListener("dragover", (event) => {
         if (!event.dataTransfer?.items?.length) return;
+        if (node.__wyslMediaLoaderDrag) return;
         event.preventDefault();
         event.stopPropagation();
         panel.classList.add("is-drop-target");
     });
     panel.addEventListener("dragleave", (event) => {
+        if (node.__wyslMediaLoaderDrag) return;
         if (event.relatedTarget instanceof Node && panel.contains(event.relatedTarget)) return;
         panel.classList.remove("is-drop-target");
     });
     panel.addEventListener("drop", (event) => {
+        if (node.__wyslMediaLoaderDrag) {
+            clearPanelDropTarget(node);
+            return;
+        }
         const files = Array.from(event.dataTransfer?.files || []).filter((file) => typeForFile(file));
         if (!files.length) return;
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation?.();
-        panel.classList.remove("is-drop-target");
+        clearPanelDropTarget(node);
         addDroppedFiles(node, files).catch((error) => console.error("Wysl media drop failed", error));
     });
 
