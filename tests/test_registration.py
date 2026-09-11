@@ -380,6 +380,17 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(splitter.RETURN_NAMES, ("图像", "音频", "视频", "图片组合"))
         self.assertEqual(splitter.OUTPUT_IS_LIST, (True, True, True, False))
         self.assertEqual(splitter.INPUT_TYPES()["required"]["media_bundle"][0], "MINIMAX_H3_MEDIA_BUNDLE")
+        controls = splitter.INPUT_TYPES()["required"]
+        self.assertEqual(controls["组合排列"][1]["default"], "从左向右")
+        self.assertEqual(
+            controls["组合排列"][0],
+            ["从左向右", "从右向左", "单元居中排列"],
+        )
+        source = (Path(__file__).resolve().parents[1] / "node_modules" / "media.py").read_text(
+            encoding="utf-8",
+        )
+        self.assertIn('column = columns - 1 - column', source)
+        self.assertIn('layout == "单元居中排列"', source)
 
     def test_media_loader_contract_and_three_separate_outputs(self):
         loader = self.package.NODE_CLASS_MAPPINGS["WyslMediaLoader"]
